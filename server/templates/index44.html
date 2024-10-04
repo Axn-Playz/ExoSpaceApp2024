@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Realistic Exoplanet Orbit Simulation</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: black;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        .info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 10px;
+        }
+
+        .controls {
+            position: absolute;
+            top: 20px; /* Change this from 'top' to 'bottom' */
+            right: 20px; /* Align it to the left */
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            padding: 10px;
+            border-radius: 10px;
+        }
+
+        .controls label {
+            display: block;
+            margin: 10px 0;
+        }
+
+        input[type="range"] {
+            width: 200px;
+        }
+
+        button {
+            margin-top: 10px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="info">
+        <h2>Planet Information</h2>
+        <p>Planet Name: Proxima Centauri b</p>
+        <p>Type: Super Earth</p>
+        <p>Mass: 1.07 Earths</p>
+        <p>Orbital Radius: <span id="radiusValue">6</span> AU</p>
+        <p>Orbital Period: 11.2 days</p>
+        <p>Eccentricity: 0.02</p>
+        <p>Discovery Date: 2016</p>
+    </div>
+    <div class="controls">
+        <label for="radiusSlider">Orbit Radius:</label>
+        <input type="range" id="radiusSlider" min="3" max="15" value="6" step="0.1">
+        <label for="speedSlider">Orbit Speed:</label>
+        <input type="range" id="speedSlider" min="0.01" max="0.1" value="0.02" step="0.01">
+        <label for="sizeSlider">Planet Size:</label>
+        <input type="range" id="sizeSlider" min="0.1" max="2" value="0.7" step="0.1">
+        <br>
+        <button id="viewButton">Planet Camera View</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script>
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Add background space environment
+        const loader = new THREE.TextureLoader();
+        scene.background = loader.load('https://static.vecteezy.com/system/resources/thumbnails/003/706/970/original/4k-3d-seamless-loop-of-traveling-to-glow-stars-filed-on-black-background-graphic-motion-overlay-effect-loop-with-galaxy-sky-twinkling-light-in-the-space-animation-galaxy-exploration-free-video.jpg');
+
+        // Add lighting effects
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        const pointLight = new THREE.PointLight(0xffd700, 2, 1000);
+        pointLight.position.set(0, 0, 0);
+        scene.add(ambientLight, pointLight);
+
+        // Load star texture and create star mesh
+        const starTexture = loader.load('https://media.istockphoto.com/id/1061398870/vector/silver-glitter-shiny-vector-background.jpg?s=612x612&w=0&k=20&c=qSQ774l-VWUb16c3MkKgk6Axb_VLAwpi4Ju3gS5ri2s=');
+        const starGeometry = new THREE.SphereGeometry(2, 64, 64);
+        const starMaterial = new THREE.MeshBasicMaterial({ map: starTexture });
+        const star = new THREE.Mesh(starGeometry, starMaterial);
+        scene.add(star);
+
+        // Load planet texture and create planet mesh
+        const planetTexture = loader.load('https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSjZDJDQLjo1qRYcTN4OJl7RI1arg9Jwl6myw&s');
+        const planetGeometry = new THREE.SphereGeometry(0.7, 64, 64);
+        const planetMaterial = new THREE.MeshPhongMaterial({ map: planetTexture });
+        const planet = new THREE.Mesh(planetGeometry, planetMaterial);
+        scene.add(planet);
+
+        // Create a smooth orbit ring
+        const orbitGeometry = new THREE.TorusGeometry(6, 0.05, 16, 100);
+        const orbitMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const orbitRing = new THREE.Mesh(orbitGeometry, orbitMaterial);
+        orbitRing.rotation.x = Math.PI / 2;
+        scene.add(orbitRing);
+
+        // Set initial camera position
+        camera.position.set(0, 5, 15);
+        camera.lookAt(0, 0, 0);
+
+        // Orbit controls for mouse interaction
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.enablePan = false;
+
+        let planetAngle = 0;
+        let orbitSpeed = parseFloat(document.getElementById('speedSlider').value);
+        let orbitRadius = parseFloat(document.getElementById('radiusSlider').value);
+        let planetSize = parseFloat(document.getElementById('sizeSlider').value);
+        let planetCameraView = false;
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Update planet orbit
+            planetAngle += orbitSpeed;
+            planet.position.set(orbitRadius * Math.cos(planetAngle), 0, orbitRadius * Math.sin(planetAngle));
+
+            // Update planet size
+            planet.scale.set(planetSize, planetSize, planetSize);
+
+            // Adjust camera view to planet
+            if (planetCameraView) {
+                const cameraDistance = 5; // Distance from the planet
+                camera.position.set(planet.position.x, planet.position.y + cameraDistance, planet.position.z - cameraDistance);
+                camera.lookAt(planet.position); // Always look at the planet
+            }
+
+            // Rotate star and planet
+            star.rotation.y += 0.002;
+            planet.rotation.y += 0.01;
+
+            // Update controls
+            controls.update();
+
+            renderer.render(scene, camera);
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+        });
+
+        // Update values based on slider input
+        document.getElementById('radiusSlider').addEventListener('input', (event) => {
+            orbitRadius = parseFloat(event.target.value);
+            document.getElementById('radiusValue').textContent = orbitRadius.toFixed(2);
+            orbitRing.geometry = new THREE.TorusGeometry(orbitRadius, 0.05, 16, 100); // Update orbit ring
+        });
+
+        document.getElementById('speedSlider').addEventListener('input', (event) => {
+            orbitSpeed = parseFloat(event.target.value);
+        });
+
+        document.getElementById('sizeSlider').addEventListener('input', (event) => {
+            planetSize = parseFloat(event.target.value);
+        });
+
+        // Toggle Planet Camera View
+        document.getElementById('viewButton').addEventListener('click', () => {
+            planetCameraView = !planetCameraView; // Toggle planet camera view
+            document.getElementById('viewButton').textContent = planetCameraView ? 'Back to Normal View' : 'Planet Camera View';
+        });
+
+        animate(); // Start animation
+    </script>
+</body>
+</html>
